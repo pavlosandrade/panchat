@@ -17,19 +17,29 @@ import type { SlashCommand } from "./types.js";
 export const playCommand: SlashCommand = {
   data: new SlashCommandBuilder()
     .setName("play")
-    .setDescription("Toca uma música do YouTube por nome ou link")
+    .setDescription("Toca uma música ou playlist do YouTube ou Spotify")
     .addStringOption((opt) =>
       opt
         .setName("musica")
-        .setDescription("Nome da música ou link do YouTube")
+        .setDescription("Nome da música ou link do YouTube / Spotify")
         .setRequired(true),
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName("plataforma")
+        .setDescription("Plataforma para busca por nome (padrão: YouTube)")
+        .setRequired(false)
+        .addChoices(
+          { name: "YouTube", value: "youtube" },
+          { name: "Spotify", value: "spotify" },
+        ),
     ),
 
   async execute(interaction, lavalink) {
     if (!interaction.guildId || !interaction.guild) {
       await interaction.reply({
         content:
-          "⚠️ O bot ainda não foi adicionado como membro (`bot`) neste servidor. Use o link de convite com escopo `bot`.",
+          "O bot ainda não foi adicionado como membro (`bot`) neste servidor. Use o link de convite com escopo `bot`.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -47,7 +57,7 @@ export const playCommand: SlashCommand = {
     const existingPlayer = lavalink.getPlayer(interaction.guildId);
     if (existingPlayer?.voiceChannelId && existingPlayer.voiceChannelId !== userVoiceId) {
       await interaction.reply({
-        content: `Já estou tocando em <#${existingPlayer.voiceChannelId}>. Entre lá para adicionar músicas!`,
+        content: `Já estou tocando em <#${existingPlayer.voiceChannelId}>. Entre lá para adicionar músicas.`,
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -55,7 +65,7 @@ export const playCommand: SlashCommand = {
 
     if (!lavalink.useable) {
       await interaction.reply({
-        content: "⏳ O servidor de áudio (Lavalink) ainda está iniciando. Tente novamente em alguns segundos.",
+        content: "O servidor de áudio ainda está iniciando. Tente novamente em alguns segundos.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -64,6 +74,7 @@ export const playCommand: SlashCommand = {
     await interaction.deferReply();
 
     const rawInput = interaction.options.getString("musica", true);
+    const platformOption = interaction.options.getString("plataforma") ?? "youtube";
     const query = toQuery(rawInput);
 
     const player =
@@ -84,8 +95,10 @@ export const playCommand: SlashCommand = {
     }
 
     const requester = { id: interaction.user.id, username: interaction.user.username };
+    const primarySource = platformOption === "spotify" ? "spsearch" : "ytmsearch";
+
     let result = await player.search(
-      isUrlQuery(rawInput) ? { query } : { query: rawInput.trim(), source: "ytmsearch" },
+      isUrlQuery(rawInput) ? { query } : { query: rawInput.trim(), source: primarySource },
       requester,
     );
 
@@ -93,7 +106,8 @@ export const playCommand: SlashCommand = {
       !isUrlQuery(rawInput) &&
       (!result || result.loadType === "empty" || result.loadType === "error" || result.tracks.length === 0)
     ) {
-      result = await player.search({ query: rawInput.trim(), source: "ytsearch" }, requester);
+      const fallbackSource = platformOption === "spotify" ? "ytmsearch" : "ytsearch";
+      result = await player.search({ query: rawInput.trim(), source: fallbackSource }, requester);
     }
 
     if (!result || result.loadType === "empty" || result.loadType === "error" || result.tracks.length === 0) {
@@ -101,7 +115,7 @@ export const playCommand: SlashCommand = {
         await player.destroy("Nenhum resultado encontrado");
       }
       await interaction.editReply({
-        content: `❌ Não encontrei nenhum resultado para **${rawInput}**.`,
+        content: `Não encontrei nenhum resultado para **${rawInput}**.`,
       });
       return;
     }
@@ -118,7 +132,7 @@ export const playCommand: SlashCommand = {
       await player.queue.add(tracksToAdd);
 
       const playlistEmbed = buildPlaylistLoadedEmbed({
-        playlistTitle: result.playlist?.title || result.playlist?.name || "Playlist do YouTube",
+        playlistTitle: result.playlist?.title || result.playlist?.name || "Playlist",
         playlistUri: result.playlist?.uri || (isUrlQuery(rawInput) ? rawInput.trim() : undefined),
         tracksAdded: tracksToAdd,
         totalPlaylistTracks: result.tracks.length,

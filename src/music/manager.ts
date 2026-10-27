@@ -77,7 +77,7 @@ export function handleVoiceStateUpdate(
         await sendToPlayerTextChannel(
           oldState.client,
           currentPlayer,
-          `👋 Saí da call após ${config.idleTimeoutMin} minutos sem ninguém por lá.`,
+          `Saí da call após ${config.idleTimeoutMin} minutos sem ninguém por lá.`,
         );
         await currentPlayer.destroy("Call vazia por tempo limite");
       }, config.idleTimeoutMs);
@@ -182,7 +182,7 @@ export function createMusicManager(client: Client, config: AppConfig): LavalinkM
     await sendToPlayerTextChannel(
       client,
       player,
-      `⚠️ Não foi possível reproduzir **${title}** (${reason}). Pulando para a próxima...`,
+      `Não foi possível reproduzir **${title}** (${reason}). Pulando para a próxima...`,
     );
   });
 
@@ -192,7 +192,7 @@ export function createMusicManager(client: Client, config: AppConfig): LavalinkM
     await sendToPlayerTextChannel(
       client,
       player,
-      `⚠️ A reprodução de **${title}** travou. Pulando para a próxima...`,
+      `A reprodução de **${title}** travou. Pulando para a próxima...`,
     );
     if (player.queue.tracks.length > 0) {
       await player.skip();
@@ -206,7 +206,7 @@ export function createMusicManager(client: Client, config: AppConfig): LavalinkM
     await sendToPlayerTextChannel(
       client,
       player,
-      `✅ A fila terminou! Se ninguém adicionar mais músicas em ${config.idleTimeoutMin} minutos, sairei da call.`,
+      `A fila terminou. Se ninguém adicionar mais músicas em ${config.idleTimeoutMin} minutos, sairei da call.`,
     );
   });
 
@@ -214,7 +214,7 @@ export function createMusicManager(client: Client, config: AppConfig): LavalinkM
     await sendToPlayerTextChannel(
       client,
       player,
-      `👋 Saí da call após ${config.idleTimeoutMin} minutos de inatividade.`,
+      `Saí da call após ${config.idleTimeoutMin} minutos de inatividade.`,
     );
   });
 

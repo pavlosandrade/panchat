@@ -1,6 +1,5 @@
-import { EmbedBuilder, MessageFlags, SlashCommandBuilder } from "discord.js";
-import { getRequesterId } from "../music/controls.js";
-import { formatDuration, formatQueueLines } from "../music/resolve.js";
+import { MessageFlags, SlashCommandBuilder } from "discord.js";
+import { buildQueueEmbedForPlayer } from "../music/controls.js";
 import type { SlashCommand } from "./types.js";
 
 export const queueCommand: SlashCommand = {
@@ -22,36 +21,6 @@ export const queueCommand: SlashCommand = {
       return;
     }
 
-    const current = player.queue.current;
-    const currentLine = current
-      ? `**[${current.info.title}](${current.info.uri})** \`[${formatDuration(current.info.duration, current.info.isStream)}]\`${
-          getRequesterId(current) ? ` • <@${getRequesterId(current)}>` : ""
-        }`
-      : "Nenhuma música tocando agora.";
-
-    const upcomingSummaries = player.queue.tracks.map((t) => ({
-      title: t.info.title,
-      uri: t.info.uri,
-      author: t.info.author,
-      duration: t.info.duration,
-      isStream: t.info.isStream,
-      requesterId: getRequesterId(t),
-    }));
-
-    const embed = new EmbedBuilder()
-      .setColor(0x3b82f6)
-      .setTitle("🎶 Fila de reprodução")
-      .addFields(
-        {
-          name: player.paused ? "⏸️ Pausado agora" : "▶️ Tocando agora",
-          value: currentLine,
-        },
-        {
-          name: `Próximas na fila (${player.queue.tracks.length})`,
-          value: formatQueueLines(upcomingSummaries, 10),
-        },
-      );
-
-    await interaction.reply({ embeds: [embed] });
+    await interaction.reply({ embeds: [buildQueueEmbedForPlayer(player)] });
   },
 };

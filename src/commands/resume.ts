@@ -33,7 +33,7 @@ export const resumeCommand: SlashCommand = {
     await player.resume();
     await refreshNowPlayingMessage(player, interaction.client);
     await interaction.reply({
-      content: "▶️ Reprodução retomada.",
+      content: "Reprodução retomada.",
     });
   },
 };

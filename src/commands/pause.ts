@@ -33,7 +33,7 @@ export const pauseCommand: SlashCommand = {
     await player.pause();
     await refreshNowPlayingMessage(player, interaction.client);
     await interaction.reply({
-      content: "⏸️ Música pausada.",
+      content: "Música pausada.",
     });
   },
 };

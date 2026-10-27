@@ -7,6 +7,43 @@ export interface SimpleTrackSummary {
   requesterId?: string;
 }
 
+export type TrackPlatform = "spotify" | "youtube";
+
+export interface PlatformTheme {
+  platform: TrackPlatform;
+  name: string;
+  color: number;
+  linkLabel: string;
+}
+
+export const PLATFORM_THEMES: Record<TrackPlatform, PlatformTheme> = {
+  spotify: {
+    platform: "spotify",
+    name: "Spotify",
+    color: 0x1db954,
+    linkLabel: "Abrir no Spotify",
+  },
+  youtube: {
+    platform: "youtube",
+    name: "YouTube",
+    color: 0xff0000,
+    linkLabel: "Abrir no YouTube",
+  },
+};
+
+export function detectTrackPlatform(sourceName?: string | null, uri?: string | null): TrackPlatform {
+  const src = sourceName?.toLowerCase() ?? "";
+  const link = uri?.toLowerCase() ?? "";
+  if (src === "spotify" || link.includes("spotify.com") || link.includes("spotify.link")) {
+    return "spotify";
+  }
+  return "youtube";
+}
+
+export function getPlatformTheme(platform: TrackPlatform): PlatformTheme {
+  return PLATFORM_THEMES[platform];
+}
+
 /**
  * Converte a entrada do usuário em uma query para o Lavalink.
  * Se começar com http:// ou https://, retorna a URL direta;
@@ -32,7 +69,7 @@ export function isUrlQuery(input: string): boolean {
  */
 export function formatDuration(ms?: number, isStream?: boolean): string {
   if (isStream) {
-    return "🔴 AO VIVO";
+    return "AO VIVO";
   }
   if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) {
     return "00:00";

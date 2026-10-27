@@ -30,7 +30,7 @@ export const skipCommand: SlashCommand = {
     }
 
     await interaction.reply({
-      content: `⏭️ **${currentTitle}** foi pulada.`,
+      content: `**${currentTitle}** foi pulada.`,
     });
   },
 };

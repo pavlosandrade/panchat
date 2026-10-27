@@ -10,7 +10,12 @@ import {
   MessageFlags,
 } from "discord.js";
 import type { LavalinkManager, Player, RepeatMode, Track, UnresolvedTrack } from "lavalink-client";
-import { formatDuration, formatQueueLines } from "./resolve.js";
+import {
+  detectTrackPlatform,
+  formatDuration,
+  formatQueueLines,
+  getPlatformTheme,
+} from "./resolve.js";
 
 export const MUSIC_BUTTON_IDS = {
   TOGGLE: "music:toggle",
@@ -18,8 +23,6 @@ export const MUSIC_BUTTON_IDS = {
   STOP: "music:stop",
   LOOP: "music:loop",
   SHUFFLE: "music:shuffle",
-  VOL_DOWN: "music:voldown",
-  VOL_UP: "music:volup",
   QUEUE: "music:queue",
   HELP: "music:help",
 } as const;
@@ -96,17 +99,6 @@ export function validateVoiceControl(
   return null;
 }
 
-function formatRepeatModeLabel(mode: RepeatMode | undefined): string {
-  switch (mode) {
-    case "track":
-      return "🔂 Música";
-    case "queue":
-      return "🔁 Fila";
-    default:
-      return "Desativado";
-  }
-}
-
 function getNextRepeatMode(mode: RepeatMode | undefined): RepeatMode {
   switch (mode) {
     case "off":
@@ -120,61 +112,55 @@ function getNextRepeatMode(mode: RepeatMode | undefined): RepeatMode {
 }
 
 export function getTrackBannerUrl(track: Track | UnresolvedTrack): string | null {
+  const artwork = track.info.artworkUrl;
+  if (artwork && artwork.includes("i.scdn.co/image/")) {
+    return artwork.replace("ab67616d00001e02", "ab67616d0000b273");
+  }
   const id = track.info.identifier;
   if (id && /^[\w-]{11}$/.test(id)) {
     return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
   }
-  return track.info.artworkUrl ?? null;
+  return artwork ?? null;
 }
 
 export function buildNowPlayingEmbed(track: Track, player?: Player): EmbedBuilder {
   const paused = player?.paused ?? false;
-  const volume = player?.volume ?? 100;
-  const repeatMode = player?.repeatMode ?? "off";
   const queueTracks = player?.queue.tracks ?? [];
   const nextTrack = queueTracks[0];
 
+  const platform = detectTrackPlatform(track.info.sourceName, track.info.uri);
+  const theme = getPlatformTheme(platform);
+
   const duration = formatDuration(track.info.duration, track.info.isStream);
   const requesterId = getRequesterId(track);
-  const statusPrefix = paused ? "⏸️ Reprodução Pausada" : "▶️ Tocando Agora";
-
-  const nextUpValue = nextTrack
-    ? `${
-        nextTrack.info.uri
-          ? `**[${nextTrack.info.title}](${nextTrack.info.uri})**`
-          : `**${nextTrack.info.title}**`
-      } \`[${formatDuration(nextTrack.info.duration, nextTrack.info.isStream)}]\`${
-        queueTracks.length > 1 ? ` *(+${queueTracks.length - 1} na fila)*` : ""
-      }`
-    : "_Nenhuma música na fila — use `/play` para adicionar!_";
-
-  const commandsGuide = [
-    "`/play <música>` Adicionar música • `/queue` Ver fila",
-    "`/skip` Pular • `/pause` Pausar • `/resume` Retomar • `/stop` Sair",
-  ].join("\n");
 
   const embed = new EmbedBuilder()
-    .setAuthor({ name: "🎧 Panchat Music Player" })
-    .setColor(paused ? 0xf59e0b : 0x22c55e)
-    .setTitle(statusPrefix)
+    .setAuthor({ name: theme.name })
+    .setColor(theme.color)
+    .setTitle(paused ? "Pausado" : "Tocando agora")
     .setDescription(
-      track.info.uri ? `### [${track.info.title}](${track.info.uri})` : `### ${track.info.title}`,
+      track.info.uri ? `**[${track.info.title}](${track.info.uri})**` : `**${track.info.title}**`,
     )
     .addFields(
-      { name: "👤 Canal / Artista", value: track.info.author || "Desconhecido", inline: true },
-      { name: "⏱️ Duração", value: `\`${duration}\``, inline: true },
+      { name: "Duração", value: `\`${duration}\``, inline: true },
       {
-        name: "🙋 Pedido por",
+        name: "Pedido por",
         value: requesterId ? `<@${requesterId}>` : "Desconhecido",
         inline: true,
       },
-      { name: "🔊 Volume", value: `\`${volume}%\``, inline: true },
-      { name: "🔁 Repetição", value: `\`${formatRepeatModeLabel(repeatMode)}\``, inline: true },
-      { name: "📜 Na Fila", value: `\`${queueTracks.length} música(s)\``, inline: true },
-      { name: "⏭️ Próxima a tocar", value: nextUpValue, inline: false },
-      { name: "⌨️ Comandos na Tela", value: commandsGuide, inline: false },
-    )
-    .setFooter({ text: "Use os botões abaixo ou digite / para controlar o player" });
+    );
+
+  if (nextTrack) {
+    const nextUpValue = `${
+      nextTrack.info.uri
+        ? `**[${nextTrack.info.title}](${nextTrack.info.uri})**`
+        : `**${nextTrack.info.title}**`
+    } \`[${formatDuration(nextTrack.info.duration, nextTrack.info.isStream)}]\`${
+      queueTracks.length > 1 ? ` *(+${queueTracks.length - 1} na fila)*` : ""
+    }`;
+
+    embed.addFields({ name: "Próxima música", value: nextUpValue, inline: false });
+  }
 
   const bannerUrl = getTrackBannerUrl(track);
   if (bannerUrl) {
@@ -190,17 +176,19 @@ export function buildQueuedTrackEmbed(
   requesterId: string,
 ): EmbedBuilder {
   const duration = formatDuration(track.info.duration, track.info.isStream);
+  const platform = detectTrackPlatform(track.info.sourceName, track.info.uri);
+  const theme = getPlatformTheme(platform);
+
   const embed = new EmbedBuilder()
-    .setColor(0x3b82f6)
-    .setAuthor({ name: "➕ Adicionado à Fila" })
+    .setColor(theme.color)
+    .setAuthor({ name: `${theme.name} • Adicionado à fila` })
     .setDescription(
       track.info.uri ? `**[${track.info.title}](${track.info.uri})**` : `**${track.info.title}**`,
     )
     .addFields(
-      { name: "👤 Canal / Artista", value: track.info.author || "Desconhecido", inline: true },
-      { name: "⏱️ Duração", value: `\`${duration}\``, inline: true },
-      { name: "📌 Posição na Fila", value: `\`#${position}\``, inline: true },
-      { name: "🙋 Pedido por", value: `<@${requesterId}>`, inline: true },
+      { name: "Duração", value: `\`${duration}\``, inline: true },
+      { name: "Posição na fila", value: `\`#${position}\``, inline: true },
+      { name: "Pedido por", value: `<@${requesterId}>`, inline: true },
     );
 
   const thumb = track.info.artworkUrl ?? getTrackBannerUrl(track);
@@ -222,31 +210,35 @@ export function buildPlaylistLoadedEmbed(options: {
   const { playlistTitle, playlistUri, tracksAdded, totalPlaylistTracks, requesterId, thumbnailUrl } =
     options;
 
+  const firstTrack = tracksAdded[0];
+  const platform = detectTrackPlatform(firstTrack?.info.sourceName, playlistUri ?? firstTrack?.info.uri);
+  const theme = getPlatformTheme(platform);
+
   const totalDurationMs = tracksAdded.reduce((acc, t) => acc + (t.info.duration ?? 0), 0);
   const formattedTotalDuration = formatDuration(totalDurationMs, false);
   const wasCapped = totalPlaylistTracks > tracksAdded.length;
 
   const embed = new EmbedBuilder()
-    .setColor(0x8b5cf6)
-    .setAuthor({ name: "📚 Playlist Adicionada à Fila" })
+    .setColor(theme.color)
+    .setAuthor({ name: `${theme.name} • Playlist adicionada à fila` })
     .setDescription(
       playlistUri ? `**[${playlistTitle}](${playlistUri})**` : `**${playlistTitle}**`,
     )
     .addFields(
       {
-        name: "🎵 Músicas Adicionadas",
+        name: "Músicas adicionadas",
         value: wasCapped
           ? `\`${tracksAdded.length}\` *(limite máx. de ${tracksAdded.length} de ${totalPlaylistTracks})*`
-          : `\`${tracksAdded.length} música(s)\``,
+          : `\`${tracksAdded.length}\``,
         inline: true,
       },
-      { name: "⏱️ Duração Somada", value: `\`${formattedTotalDuration}\``, inline: true },
-      { name: "🙋 Pedido por", value: `<@${requesterId}>`, inline: true },
+      { name: "Duração total", value: `\`${formattedTotalDuration}\``, inline: true },
+      { name: "Pedido por", value: `<@${requesterId}>`, inline: true },
     );
 
   const thumb =
     thumbnailUrl ??
-    (tracksAdded[0] ? (tracksAdded[0].info.artworkUrl ?? getTrackBannerUrl(tracksAdded[0])) : null);
+    (firstTrack ? (firstTrack.info.artworkUrl ?? getTrackBannerUrl(firstTrack)) : null);
   if (thumb) {
     embed.setThumbnail(thumb);
   }
@@ -260,9 +252,13 @@ export function buildNowPlayingControls(
 ): ActionRowBuilder<ButtonBuilder>[] {
   const paused = player?.paused ?? false;
   const repeatMode = player?.repeatMode ?? "off";
-  const volume = player?.volume ?? 100;
   const queueLength = player?.queue.tracks.length ?? 0;
-  const currentUri = player?.queue.current?.info.uri;
+  const currentTrack = player?.queue.current;
+  const currentUri = currentTrack?.info.uri;
+
+  const platform = detectTrackPlatform(currentTrack?.info.sourceName, currentUri);
+  const theme = getPlatformTheme(platform);
+  const brandButtonStyle = platform === "spotify" ? ButtonStyle.Success : ButtonStyle.Danger;
 
   const loopLabel =
     repeatMode === "track"
@@ -274,58 +270,39 @@ export function buildNowPlayingControls(
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(MUSIC_BUTTON_IDS.TOGGLE)
-      .setEmoji(paused ? "▶️" : "⏯️")
       .setLabel(paused ? "Retomar" : "Pausar")
-      .setStyle(paused ? ButtonStyle.Success : ButtonStyle.Secondary)
+      .setStyle(brandButtonStyle)
       .setDisabled(disabled),
     new ButtonBuilder()
       .setCustomId(MUSIC_BUTTON_IDS.SKIP)
-      .setEmoji("⏭️")
       .setLabel("Pular")
-      .setStyle(ButtonStyle.Primary)
+      .setStyle(brandButtonStyle)
       .setDisabled(disabled),
     new ButtonBuilder()
       .setCustomId(MUSIC_BUTTON_IDS.STOP)
-      .setEmoji("⏹️")
       .setLabel("Parar")
-      .setStyle(ButtonStyle.Danger)
+      .setStyle(brandButtonStyle)
       .setDisabled(disabled),
     new ButtonBuilder()
       .setCustomId(MUSIC_BUTTON_IDS.LOOP)
-      .setEmoji(repeatMode === "track" ? "🔂" : "🔁")
       .setLabel(loopLabel)
-      .setStyle(repeatMode === "off" ? ButtonStyle.Secondary : ButtonStyle.Success)
+      .setStyle(repeatMode === "off" ? ButtonStyle.Secondary : brandButtonStyle)
       .setDisabled(disabled),
     new ButtonBuilder()
       .setCustomId(MUSIC_BUTTON_IDS.SHUFFLE)
-      .setEmoji("🔀")
       .setLabel("Shuffle")
-      .setStyle(ButtonStyle.Secondary)
+      .setStyle(brandButtonStyle)
       .setDisabled(disabled || queueLength < 2),
   );
 
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(MUSIC_BUTTON_IDS.VOL_DOWN)
-      .setEmoji("🔉")
-      .setLabel("-20%")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(disabled || volume <= 20),
-    new ButtonBuilder()
-      .setCustomId(MUSIC_BUTTON_IDS.VOL_UP)
-      .setEmoji("🔊")
-      .setLabel("+20%")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(disabled || volume >= 150),
-    new ButtonBuilder()
       .setCustomId(MUSIC_BUTTON_IDS.QUEUE)
-      .setEmoji("📜")
       .setLabel(`Fila (${queueLength})`)
-      .setStyle(ButtonStyle.Secondary)
+      .setStyle(brandButtonStyle)
       .setDisabled(disabled),
     new ButtonBuilder()
       .setCustomId(MUSIC_BUTTON_IDS.HELP)
-      .setEmoji("❓")
       .setLabel("Comandos")
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(disabled),
@@ -334,8 +311,7 @@ export function buildNowPlayingControls(
   if (currentUri && /^https?:\/\//i.test(currentUri)) {
     row2.addComponents(
       new ButtonBuilder()
-        .setLabel("YouTube")
-        .setEmoji("🔗")
+        .setLabel(theme.linkLabel)
         .setStyle(ButtonStyle.Link)
         .setURL(currentUri),
     );
@@ -416,8 +392,11 @@ export async function refreshNowPlayingMessage(
   }
 }
 
-function buildQueueEmbedForPlayer(player: Player): EmbedBuilder {
+export function buildQueueEmbedForPlayer(player: Player): EmbedBuilder {
   const current = player.queue.current;
+  const platform = detectTrackPlatform(current?.info.sourceName, current?.info.uri);
+  const theme = getPlatformTheme(platform);
+
   const currentLine = current
     ? `**[${current.info.title}](${current.info.uri})** \`[${formatDuration(current.info.duration, current.info.isStream)}]\`${
         getRequesterId(current) ? ` • <@${getRequesterId(current)}>` : ""
@@ -434,11 +413,11 @@ function buildQueueEmbedForPlayer(player: Player): EmbedBuilder {
   }));
 
   return new EmbedBuilder()
-    .setColor(0x3b82f6)
-    .setTitle("🎶 Fila de Reprodução")
+    .setColor(theme.color)
+    .setTitle("Fila de reprodução")
     .addFields(
       {
-        name: player.paused ? "⏸️ Pausado agora" : "▶️ Tocando agora",
+        name: player.paused ? "Pausado agora" : "Tocando agora",
         value: currentLine,
       },
       {
@@ -448,17 +427,17 @@ function buildQueueEmbedForPlayer(player: Player): EmbedBuilder {
     );
 }
 
-function buildCommandsHelpEmbed(): EmbedBuilder {
+function buildCommandsHelpEmbed(color: number): EmbedBuilder {
   return new EmbedBuilder()
-    .setColor(0x8b5cf6)
-    .setTitle("❓ Guia de Comandos e Controles — Panchat")
-    .setDescription("Você pode controlar o bot pelos **botões abaixo do player** ou digitando os comandos `/`:")
+    .setColor(color)
+    .setTitle("Comandos e Controles — Panchat")
+    .setDescription("Você pode controlar o bot pelos botões abaixo do player ou pelos comandos `/`:")
     .addFields(
       {
-        name: "🎵 Comandos de Barra (`/`)",
+        name: "Comandos de Barra (/)",
         value: [
-          "• `/play musica:<nome ou link>` — Toca ou adiciona uma música do YouTube à fila",
-          "• `/queue` — Mostra a música atual e as próximas 10 da fila",
+          "• `/play musica:<nome ou link> [plataforma]` — Toca música ou playlist do YouTube ou Spotify",
+          "• `/queue` — Mostra a música atual e as próximas da fila",
           "• `/skip` — Pula para a próxima música",
           "• `/pause` — Pausa a reprodução atual",
           "• `/resume` — Retoma a música pausada",
@@ -466,14 +445,13 @@ function buildCommandsHelpEmbed(): EmbedBuilder {
         ].join("\n"),
       },
       {
-        name: "🎛️ Botões do Painel",
+        name: "Botões do Painel",
         value: [
-          "• **⏯️ Pausar / Retomar:** Pausa ou continua a música na hora",
-          "• **⏭️ Pular / ⏹️ Parar:** Avança de faixa ou encerra a sessão",
-          "• **🔁 Loop:** Alterna entre *Desativado*, *Repetir Música* e *Repetir Fila*",
-          "• **🔀 Shuffle:** Embaralha a ordem das músicas na fila",
-          "• **🔉 -20% / 🔊 +20%:** Ajusta o volume da reprodução (20% a 150%)",
-          "• **📜 Fila:** Exibe a fila atual sem precisar digitar `/queue`",
+          "• **Pausar / Retomar:** Pausa ou continua a música atual",
+          "• **Pular / Parar:** Avança de faixa ou encerra a sessão",
+          "• **Loop:** Alterna entre *Off*, *Música* e *Fila*",
+          "• **Shuffle:** Embaralha a ordem das músicas na fila",
+          "• **Fila:** Exibe a fila atual sem precisar digitar `/queue`",
         ].join("\n"),
       },
     );
@@ -487,18 +465,21 @@ export async function handleMusicButton(
     return;
   }
 
-  // O botão de ajuda funciona mesmo sem player ou fora da call
+  const player = lavalink.getPlayer(interaction.guildId);
+  const currentPlatform = detectTrackPlatform(
+    player?.queue.current?.info.sourceName,
+    player?.queue.current?.info.uri,
+  );
+  const currentTheme = getPlatformTheme(currentPlatform);
+
   if (interaction.customId === MUSIC_BUTTON_IDS.HELP) {
     await interaction.reply({
-      embeds: [buildCommandsHelpEmbed()],
+      embeds: [buildCommandsHelpEmbed(currentTheme.color)],
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
-  const player = lavalink.getPlayer(interaction.guildId);
-
-  // O botão de ver a fila pode ser consultado por qualquer membro
   if (interaction.customId === MUSIC_BUTTON_IDS.QUEUE) {
     if (!player || (!player.queue.current && player.queue.tracks.length === 0)) {
       await interaction.reply({
@@ -565,28 +546,6 @@ export async function handleMusicButton(
       return;
     }
 
-    case MUSIC_BUTTON_IDS.VOL_DOWN: {
-      const newVol = Math.max(20, (player.volume ?? 100) - 20);
-      await player.setVolume(newVol);
-      const embeds = currentTrack ? [buildNowPlayingEmbed(currentTrack, player)] : undefined;
-      await interaction.update({
-        ...(embeds ? { embeds } : {}),
-        components: buildNowPlayingControls(player, false),
-      });
-      return;
-    }
-
-    case MUSIC_BUTTON_IDS.VOL_UP: {
-      const newVol = Math.min(150, (player.volume ?? 100) + 20);
-      await player.setVolume(newVol);
-      const embeds = currentTrack ? [buildNowPlayingEmbed(currentTrack, player)] : undefined;
-      await interaction.update({
-        ...(embeds ? { embeds } : {}),
-        components: buildNowPlayingControls(player, false),
-      });
-      return;
-    }
-
     case MUSIC_BUTTON_IDS.SKIP: {
       const skippedTitle = currentTrack?.info.title ?? "a música atual";
       if (player.queue.tracks.length === 0) {
@@ -595,7 +554,7 @@ export async function handleMusicButton(
         await player.skip();
       }
       await interaction.reply({
-        content: `⏭️ <@${interaction.user.id}> pulou **${skippedTitle}**.`,
+        content: `<@${interaction.user.id}> pulou **${skippedTitle}**.`,
       });
       return;
     }
@@ -604,7 +563,7 @@ export async function handleMusicButton(
       await disablePreviousNowPlayingMessage(player, interaction.client);
       await player.destroy("Parado pelo botão");
       await interaction.reply({
-        content: `⏹️ <@${interaction.user.id}> parou a reprodução e limpou a fila.`,
+        content: `<@${interaction.user.id}> parou a reprodução e limpou a fila.`,
       });
       return;
     }

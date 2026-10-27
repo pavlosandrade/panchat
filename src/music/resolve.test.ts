@@ -1,8 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  detectTrackPlatform,
   formatDuration,
   formatQueueLines,
+  getPlatformTheme,
   isUrlQuery,
   MAX_PLAYLIST_TRACKS,
   slicePlaylistTracks,
@@ -46,7 +48,7 @@ describe("formatDuration", () => {
   });
 
   it("exibe indicador de transmissão ao vivo quando isStream=true", () => {
-    assert.equal(formatDuration(0, true), "🔴 AO VIVO");
+    assert.equal(formatDuration(0, true), "AO VIVO");
   });
 });
 
@@ -106,5 +108,21 @@ describe("slicePlaylistTracks", () => {
     assert.equal(sliced.length, 36);
     assert.equal(sliced[0].info.identifier, "id-45");
     assert.equal(sliced[35].info.identifier, "id-80");
+  });
+});
+
+describe("detectTrackPlatform e getPlatformTheme", () => {
+  it("detecta Spotify por sourceName ou URL e retorna verde #1DB954", () => {
+    assert.equal(detectTrackPlatform("spotify", undefined), "spotify");
+    assert.equal(
+      detectTrackPlatform("youtube", "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"),
+      "spotify",
+    );
+    assert.equal(getPlatformTheme("spotify").color, 0x1db954);
+  });
+
+  it("detecta YouTube por padrão e retorna vermelho #FF0000", () => {
+    assert.equal(detectTrackPlatform("youtube", "https://www.youtube.com/watch?v=123"), "youtube");
+    assert.equal(getPlatformTheme("youtube").color, 0xff0000);
   });
 });

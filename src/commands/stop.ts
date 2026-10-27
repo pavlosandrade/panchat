@@ -25,7 +25,7 @@ export const stopCommand: SlashCommand = {
     await disablePreviousNowPlayingMessage(player, interaction.client);
     await player.destroy("Parado por /stop");
     await interaction.reply({
-      content: "⏹️ Reprodução encerrada e fila limpa.",
+      content: "Reprodução encerrada e fila limpa.",
     });
   },
 };
