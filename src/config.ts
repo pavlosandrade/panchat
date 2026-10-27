@@ -23,6 +23,20 @@ function parsePositiveInt(value: string | undefined, fallback: number, name: str
   return parsed;
 }
 
+function parseBoolean(value: string | undefined, fallback: boolean): boolean {
+  if (!value || !value.trim()) {
+    return fallback;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "0" || normalized === "no") {
+    return false;
+  }
+  return fallback;
+}
+
 export interface AppConfig {
   discordToken: string;
   discordClientId: string;
@@ -30,6 +44,9 @@ export interface AppConfig {
   lavalinkHost: string;
   lavalinkPort: number;
   lavalinkPassword: string;
+  lavalinkSecure: boolean;
+  lavalinkFallbackNodes: boolean;
+  httpPort: number;
   idleTimeoutMin: number;
   idleTimeoutMs: number;
 }
@@ -45,6 +62,9 @@ export function loadConfig(): AppConfig {
     lavalinkHost: process.env.LAVALINK_HOST?.trim() || "localhost",
     lavalinkPort: parsePositiveInt(process.env.LAVALINK_PORT, 2333, "LAVALINK_PORT"),
     lavalinkPassword: process.env.LAVALINK_PASSWORD?.trim() || "panchat-lavalink-secret",
+    lavalinkSecure: parseBoolean(process.env.LAVALINK_SECURE, false),
+    lavalinkFallbackNodes: parseBoolean(process.env.LAVALINK_FALLBACK_NODES, false),
+    httpPort: parsePositiveInt(process.env.PORT, 3000, "PORT"),
     idleTimeoutMin,
     idleTimeoutMs: idleTimeoutMin * 60 * 1000,
   };

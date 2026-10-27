@@ -1,3 +1,4 @@
+import http from "node:http";
 import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
 import type { VoicePacket } from "lavalink-client";
 import { commandMap } from "./commands/index.js";
@@ -16,6 +17,26 @@ async function main(): Promise<void> {
   });
 
   const lavalink = createMusicManager(client, config);
+
+  const healthServer = http.createServer((req, res) => {
+    if (req.url === "/" || req.url === "/health") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          status: "ok",
+          bot: client.user?.tag ?? "starting",
+          uptimeSeconds: Math.floor(process.uptime()),
+        }),
+      );
+      return;
+    }
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Not Found" }));
+  });
+
+  healthServer.listen(config.httpPort, "0.0.0.0", () => {
+    console.log(`[Health] Servidor HTTP ativo em 0.0.0.0:${config.httpPort}/health`);
+  });
 
   client.on("raw", (data) => {
     void lavalink.sendRawData(data as VoicePacket);
@@ -74,6 +95,7 @@ async function main(): Promise<void> {
 
   const shutdown = async (signal: string) => {
     console.log(`\n[Bot] Recebido ${signal}. Encerrando conexões...`);
+    healthServer.close();
     for (const player of lavalink.players.values()) {
       await player.destroy("Servidor encerrando").catch(() => {});
     }

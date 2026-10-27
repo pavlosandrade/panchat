@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: panchat-bot
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        value: "1547039282584100945"
+      - key: LAVALINK_HOST
+        value: lavalink.jirayu.net
+      - key: LAVALINK_PORT
+        value: "443"
+      - key: LAVALINK_PASSWORD
+        value: youshallnotpass
+      - key: LAVALINK_SECURE
+        value: "true"
+      - key: LAVALINK_FALLBACK_NODES
+        value: "true"
+      - key: IDLE_TIMEOUT_MIN
+        value: "5"

@@ -87,18 +87,32 @@ export function handleVoiceStateUpdate(
 }
 
 export function createMusicManager(client: Client, config: AppConfig): LavalinkManager {
+  const nodes = [
+    {
+      id: "main-node",
+      host: config.lavalinkHost,
+      port: config.lavalinkPort,
+      authorization: config.lavalinkPassword,
+      secure: config.lavalinkSecure,
+      retryAmount: 10,
+      retryDelay: 5_000,
+    },
+  ];
+
+  if (config.lavalinkFallbackNodes && config.lavalinkHost !== "lavalinkv4.serenetia.com") {
+    nodes.push({
+      id: "fallback-serenetia",
+      host: "lavalinkv4.serenetia.com",
+      port: 443,
+      authorization: "https://seretia.link/discord",
+      secure: true,
+      retryAmount: 10,
+      retryDelay: 5_000,
+    });
+  }
+
   const lavalink = new LavalinkManager({
-    nodes: [
-      {
-        id: "main-node",
-        host: config.lavalinkHost,
-        port: config.lavalinkPort,
-        authorization: config.lavalinkPassword,
-        secure: false,
-        retryAmount: 10,
-        retryDelay: 5_000,
-      },
-    ],
+    nodes,
     sendToShard: (guildId, payload) => {
       client.guilds.cache.get(guildId)?.shard?.send(payload);
     },
