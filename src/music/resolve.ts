@@ -51,23 +51,50 @@ export function formatDuration(ms?: number, isStream?: boolean): string {
   return `${pad(minutes)}:${pad(seconds)}`;
 }
 
+function truncateTitle(title: string, maxLength = 55): string {
+  const clean = title.trim();
+  if (clean.length <= maxLength) {
+    return clean;
+  }
+  return `${clean.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
 /**
- * Formata a lista das próximas músicas na fila (até `limit` itens).
+ * Formata a lista das próximas músicas na fila (até `limit` itens),
+ * garantindo que o resultado nunca ultrapasse o limite de 1024 caracteres
+ * de um campo de Embed do Discord.
  */
-export function formatQueueLines(tracks: SimpleTrackSummary[], limit = 10): string {
+export function formatQueueLines(
+  tracks: SimpleTrackSummary[],
+  limit = 10,
+  maxChars = 950,
+): string {
   if (tracks.length === 0) {
     return "Nenhuma música na fila.";
   }
 
   const slice = tracks.slice(0, limit);
-  const lines = slice.map((track, idx) => {
-    const duration = formatDuration(track.duration, track.isStream);
-    const titleLink = track.uri ? `[${track.title}](${track.uri})` : track.title;
-    const requester = track.requesterId ? ` • <@${track.requesterId}>` : "";
-    return `**${idx + 1}.** ${titleLink} \`[${duration}]\`${requester}`;
-  });
+  const lines: string[] = [];
+  let currentLength = 0;
+  const footerReserve = 45;
 
-  const remaining = tracks.length - slice.length;
+  for (let idx = 0; idx < slice.length; idx++) {
+    const track = slice[idx];
+    const duration = formatDuration(track.duration, track.isStream);
+    const shortTitle = truncateTitle(track.title, 55);
+    const titleLink = track.uri ? `[${shortTitle}](${track.uri})` : shortTitle;
+    const requester = track.requesterId ? ` • <@${track.requesterId}>` : "";
+    const line = `**${idx + 1}.** ${titleLink} \`[${duration}]\`${requester}`;
+
+    if (lines.length > 0 && currentLength + line.length + 1 > maxChars - footerReserve) {
+      break;
+    }
+
+    lines.push(line);
+    currentLength += line.length + 1;
+  }
+
+  const remaining = tracks.length - lines.length;
   if (remaining > 0) {
     lines.push(`\n*...e mais ${remaining} música(s) na fila.*`);
   }

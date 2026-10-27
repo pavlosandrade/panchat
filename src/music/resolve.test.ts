@@ -69,6 +69,22 @@ describe("formatQueueLines", () => {
     assert.doesNotMatch(output, /Música 11/);
     assert.match(output, /e mais 2 música\(s\) na fila/);
   });
+
+  it("nunca ultrapassa 1024 caracteres mesmo com 50 músicas de títulos e URLs longas", () => {
+    const tracks = Array.from({ length: 50 }, (_, i) => ({
+      title: `Artista Com Nome Muito Grande - Título da Música Oficial Video Clipe Completo Em HD #${i + 1}`,
+      uri: `https://www.youtube.com/watch?v=kPa7bsKwL-${String(i).padStart(2, "0")}`,
+      duration: 245_000,
+      requesterId: "123456789012345678",
+    }));
+
+    const output = formatQueueLines(tracks, 10);
+    assert.ok(
+      output.length <= 950,
+      `Esperado <= 950 caracteres, mas gerou ${output.length}`,
+    );
+    assert.match(output, /música\(s\) na fila/);
+  });
 });
 
 describe("slicePlaylistTracks", () => {
