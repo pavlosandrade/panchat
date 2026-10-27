@@ -88,6 +88,34 @@ export function formatDuration(ms?: number, isStream?: boolean): string {
   return `${pad(minutes)}:${pad(seconds)}`;
 }
 
+/**
+ * Renderiza uma barra de progresso visual com um indicador de posição.
+ * Exemplo: ▬▬▬▬🔘▬▬▬▬▬▬▬ `01:15 / 03:08`
+ */
+export function formatProgressBar(
+  currentMs: number,
+  totalMs?: number,
+  isStream?: boolean,
+  barLength = 12,
+): string {
+  if (isStream) {
+    return `${"▬".repeat(barLength)} AO VIVO`;
+  }
+  if (typeof totalMs !== "number" || !Number.isFinite(totalMs) || totalMs <= 0) {
+    return `${"▬".repeat(barLength)} \`00:00 / 00:00\``;
+  }
+
+  const safeCurrent = Math.max(0, Math.min(totalMs, currentMs));
+  const progress = safeCurrent / totalMs;
+  const dotIndex = Math.min(barLength - 1, Math.max(0, Math.floor(progress * barLength)));
+
+  const before = "▬".repeat(dotIndex);
+  const after = "▬".repeat(Math.max(0, barLength - 1 - dotIndex));
+  const bar = `${before}🔘${after}`;
+
+  return `${bar} \`${formatDuration(safeCurrent)} / ${formatDuration(totalMs)}\``;
+}
+
 function truncateTitle(title: string, maxLength = 55): string {
   const clean = title.trim();
   if (clean.length <= maxLength) {

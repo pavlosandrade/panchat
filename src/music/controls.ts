@@ -13,6 +13,7 @@ import type { LavalinkManager, Player, RepeatMode, Track, UnresolvedTrack } from
 import {
   detectTrackPlatform,
   formatDuration,
+  formatProgressBar,
   formatQueueLines,
   getPlatformTheme,
 } from "./resolve.js";
@@ -131,7 +132,7 @@ export function buildNowPlayingEmbed(track: Track, player?: Player): EmbedBuilde
   const platform = detectTrackPlatform(track.info.sourceName, track.info.uri);
   const theme = getPlatformTheme(platform);
 
-  const duration = formatDuration(track.info.duration, track.info.isStream);
+  const progress = formatProgressBar(player?.position ?? 0, track.info.duration, track.info.isStream);
   const requesterId = getRequesterId(track);
 
   const embed = new EmbedBuilder()
@@ -142,7 +143,7 @@ export function buildNowPlayingEmbed(track: Track, player?: Player): EmbedBuilde
       track.info.uri ? `**[${track.info.title}](${track.info.uri})**` : `**${track.info.title}**`,
     )
     .addFields(
-      { name: "Duração", value: `\`${duration}\``, inline: true },
+      { name: "Progresso", value: progress, inline: true },
       {
         name: "Pedido por",
         value: requesterId ? `<@${requesterId}>` : "Desconhecido",
@@ -437,6 +438,7 @@ function buildCommandsHelpEmbed(color: number): EmbedBuilder {
         name: "Comandos de Barra (/)",
         value: [
           "• `/play musica:<nome ou link> [plataforma]` — Toca música ou playlist do YouTube ou Spotify",
+          "• `/nowplaying` — Mostra a música atual e a barra de progresso",
           "• `/queue` — Mostra a música atual e as próximas da fila",
           "• `/skip` — Pula para a próxima música",
           "• `/pause` — Pausa a reprodução atual",

@@ -68,6 +68,14 @@ async function main(): Promise<void> {
 
   client.on(Events.InteractionCreate, async (interaction) => {
     try {
+      if (interaction.isAutocomplete()) {
+        const command = commandMap.get(interaction.commandName);
+        if (command?.autocomplete) {
+          await command.autocomplete(interaction, lavalink);
+        }
+        return;
+      }
+
       if (interaction.isChatInputCommand()) {
         const command = commandMap.get(interaction.commandName);
         if (!command) {

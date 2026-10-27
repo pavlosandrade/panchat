@@ -11,7 +11,7 @@ import {
   refreshNowPlayingMessage,
   saveNowPlayingMessage,
 } from "../music/controls.js";
-import { isUrlQuery, MAX_PLAYLIST_TRACKS, slicePlaylistTracks, toQuery } from "../music/resolve.js";
+import { formatDuration, isUrlQuery, MAX_PLAYLIST_TRACKS, slicePlaylistTracks, toQuery } from "../music/resolve.js";
 import type { SlashCommand } from "./types.js";
 
 export const playCommand: SlashCommand = {
@@ -22,7 +22,8 @@ export const playCommand: SlashCommand = {
       opt
         .setName("musica")
         .setDescription("Nome da música ou link do YouTube / Spotify")
-        .setRequired(true),
+        .setRequired(true)
+        .setAutocomplete(true),
     )
     .addStringOption((opt) =>
       opt
@@ -177,6 +178,50 @@ export const playCommand: SlashCommand = {
         embeds: [buildQueuedTrackEmbed(track, position, interaction.user.id)],
       });
       await refreshNowPlayingMessage(player, interaction.client);
+    }
+  },
+
+  async autocomplete(interaction, lavalink) {
+    const focused = interaction.options.getFocused(true);
+    if (focused.name !== "musica") {
+      await interaction.respond([]);
+      return;
+    }
+
+    const query = focused.value.trim();
+    if (!query || isUrlQuery(query) || query.length < 2) {
+      await interaction.respond([]);
+      return;
+    }
+
+    const platform = interaction.options.getString("plataforma") ?? "youtube";
+    const source = platform === "spotify" ? "spsearch" : "ytmsearch";
+
+    const node = lavalink.nodeManager.leastUsedNodes()[0];
+    if (!node) {
+      await interaction.respond([]);
+      return;
+    }
+
+    try {
+      const result = await node.search({ query, source }, interaction.user);
+      if (!result || !result.tracks || result.tracks.length === 0) {
+        await interaction.respond([]);
+        return;
+      }
+
+      const choices = result.tracks.slice(0, 10).map((t) => {
+        const title = t.info.title.length > 55 ? `${t.info.title.slice(0, 54)}…` : t.info.title;
+        const author = t.info.author ? ` - ${t.info.author}` : "";
+        const duration = formatDuration(t.info.duration, t.info.isStream);
+        const name = `${title} [${duration}]${author}`.slice(0, 100);
+        const value = t.info.uri && t.info.uri.length <= 100 ? t.info.uri : t.info.title.slice(0, 100);
+        return { name, value };
+      });
+
+      await interaction.respond(choices);
+    } catch {
+      await interaction.respond([]).catch(() => {});
     }
   },
 };

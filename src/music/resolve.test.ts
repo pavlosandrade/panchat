@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   detectTrackPlatform,
   formatDuration,
+  formatProgressBar,
   formatQueueLines,
   getPlatformTheme,
   isUrlQuery,
@@ -124,5 +125,27 @@ describe("detectTrackPlatform e getPlatformTheme", () => {
   it("detecta YouTube por padrão e retorna vermelho #FF0000", () => {
     assert.equal(detectTrackPlatform("youtube", "https://www.youtube.com/watch?v=123"), "youtube");
     assert.equal(getPlatformTheme("youtube").color, 0xff0000);
+  });
+});
+
+describe("formatProgressBar", () => {
+  it("renderiza no início (0%) com o ponto no começo", () => {
+    const bar = formatProgressBar(0, 180_000, false, 10);
+    assert.match(bar, /^🔘▬▬▬▬▬▬▬▬▬ `00:00 \/ 03:00`$/);
+  });
+
+  it("renderiza no meio (50%) com o ponto no centro", () => {
+    const bar = formatProgressBar(90_000, 180_000, false, 10);
+    assert.match(bar, /^▬▬▬▬▬🔘▬▬▬▬ `01:30 \/ 03:00`$/);
+  });
+
+  it("renderiza no fim (100%) com o ponto no final", () => {
+    const bar = formatProgressBar(180_000, 180_000, false, 10);
+    assert.match(bar, /^▬▬▬▬▬▬▬▬▬🔘 `03:00 \/ 03:00`$/);
+  });
+
+  it("exibe AO VIVO para transmissões", () => {
+    const bar = formatProgressBar(10_000, 0, true, 10);
+    assert.equal(bar, "▬▬▬▬▬▬▬▬▬▬ AO VIVO");
   });
 });
