@@ -1,6 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatDuration, formatQueueLines, isUrlQuery, toQuery } from "./resolve.js";
+import {
+  formatDuration,
+  formatQueueLines,
+  isUrlQuery,
+  MAX_PLAYLIST_TRACKS,
+  slicePlaylistTracks,
+  toQuery,
+} from "./resolve.js";
 
 describe("toQuery", () => {
   it("prefixa termos de busca simples com ytsearch:", () => {
@@ -61,5 +68,27 @@ describe("formatQueueLines", () => {
     assert.match(output, /\*\*10\.\*\* \[Música 10\]/);
     assert.doesNotMatch(output, /Música 11/);
     assert.match(output, /e mais 2 música\(s\) na fila/);
+  });
+});
+
+describe("slicePlaylistTracks", () => {
+  it("limita a playlist em 50 músicas por padrão", () => {
+    const allTracks = Array.from({ length: 80 }, (_, i) => ({
+      info: { identifier: `id-${i + 1}` },
+    }));
+    const sliced = slicePlaylistTracks(allTracks);
+    assert.equal(sliced.length, MAX_PLAYLIST_TRACKS);
+    assert.equal(sliced[0].info.identifier, "id-1");
+    assert.equal(sliced[49].info.identifier, "id-50");
+  });
+
+  it("inicia a partir de selectedTrackId quando informado", () => {
+    const allTracks = Array.from({ length: 80 }, (_, i) => ({
+      info: { identifier: `id-${i + 1}` },
+    }));
+    const sliced = slicePlaylistTracks(allTracks, "id-45");
+    assert.equal(sliced.length, 36);
+    assert.equal(sliced[0].info.identifier, "id-45");
+    assert.equal(sliced[35].info.identifier, "id-80");
   });
 });

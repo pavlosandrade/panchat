@@ -74,3 +74,27 @@ export function formatQueueLines(tracks: SimpleTrackSummary[], limit = 10): stri
 
   return lines.join("\n");
 }
+
+export const MAX_PLAYLIST_TRACKS = 50;
+
+/**
+ * Seleciona até `maxTracks` (padrão 50) faixas de uma playlist.
+ * Se houver uma faixa selecionada (`selectedTrackId`), inicia a fatia a partir dela.
+ */
+export function slicePlaylistTracks<T extends { info: { identifier?: string } }>(
+  tracks: T[],
+  selectedTrackId?: string | null,
+  maxTracks = MAX_PLAYLIST_TRACKS,
+): T[] {
+  if (tracks.length === 0) {
+    return [];
+  }
+  let startIdx = 0;
+  if (selectedTrackId) {
+    const foundIdx = tracks.findIndex((t) => t.info.identifier === selectedTrackId);
+    if (foundIdx >= 0) {
+      startIdx = foundIdx;
+    }
+  }
+  return tracks.slice(startIdx, startIdx + maxTracks);
+}

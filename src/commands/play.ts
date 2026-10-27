@@ -1,8 +1,9 @@
 import { MessageFlags, SlashCommandBuilder } from "discord.js";
-import type { Track } from "lavalink-client";
+import type { Track, UnresolvedTrack } from "lavalink-client";
 import {
   buildNowPlayingControls,
   buildNowPlayingEmbed,
+  buildPlaylistLoadedEmbed,
   buildQueuedTrackEmbed,
   disablePreviousNowPlayingMessage,
   getMemberVoiceChannelId,
@@ -10,7 +11,7 @@ import {
   refreshNowPlayingMessage,
   saveNowPlayingMessage,
 } from "../music/controls.js";
-import { isUrlQuery, toQuery } from "../music/resolve.js";
+import { isUrlQuery, MAX_PLAYLIST_TRACKS, slicePlaylistTracks, toQuery } from "../music/resolve.js";
 import type { SlashCommand } from "./types.js";
 
 export const playCommand: SlashCommand = {
@@ -102,6 +103,44 @@ export const playCommand: SlashCommand = {
       await interaction.editReply({
         content: `❌ Não encontrei nenhum resultado para **${rawInput}**.`,
       });
+      return;
+    }
+
+    if (result.loadType === "playlist" && result.tracks.length > 1) {
+      const selectedId = result.playlist?.selectedTrack?.info.identifier;
+      const tracksToAdd = slicePlaylistTracks(
+        result.tracks as (Track | UnresolvedTrack)[],
+        selectedId,
+        MAX_PLAYLIST_TRACKS,
+      );
+      const firstTrack = tracksToAdd[0];
+
+      await player.queue.add(tracksToAdd);
+
+      const playlistEmbed = buildPlaylistLoadedEmbed({
+        playlistTitle: result.playlist?.title || result.playlist?.name || "Playlist do YouTube",
+        playlistUri: result.playlist?.uri || (isUrlQuery(rawInput) ? rawInput.trim() : undefined),
+        tracksAdded: tracksToAdd,
+        totalPlaylistTracks: result.tracks.length,
+        requesterId: interaction.user.id,
+        thumbnailUrl: result.playlist?.thumbnail,
+      });
+
+      if (!player.playing && !player.paused) {
+        await disablePreviousNowPlayingMessage(player, interaction.client);
+        markInitialPlayTrack(player, firstTrack.info.identifier);
+        await player.play();
+        const sent = await interaction.editReply({
+          embeds: [playlistEmbed, buildNowPlayingEmbed(firstTrack as Track, player)],
+          components: buildNowPlayingControls(player, false),
+        });
+        saveNowPlayingMessage(player, interaction.channelId, sent.id, firstTrack.info.identifier);
+      } else {
+        await interaction.editReply({
+          embeds: [playlistEmbed],
+        });
+        await refreshNowPlayingMessage(player, interaction.client);
+      }
       return;
     }
 

@@ -211,6 +211,49 @@ export function buildQueuedTrackEmbed(
   return embed;
 }
 
+export function buildPlaylistLoadedEmbed(options: {
+  playlistTitle: string;
+  playlistUri?: string;
+  tracksAdded: (Track | UnresolvedTrack)[];
+  totalPlaylistTracks: number;
+  requesterId: string;
+  thumbnailUrl?: string | null;
+}): EmbedBuilder {
+  const { playlistTitle, playlistUri, tracksAdded, totalPlaylistTracks, requesterId, thumbnailUrl } =
+    options;
+
+  const totalDurationMs = tracksAdded.reduce((acc, t) => acc + (t.info.duration ?? 0), 0);
+  const formattedTotalDuration = formatDuration(totalDurationMs, false);
+  const wasCapped = totalPlaylistTracks > tracksAdded.length;
+
+  const embed = new EmbedBuilder()
+    .setColor(0x8b5cf6)
+    .setAuthor({ name: "📚 Playlist Adicionada à Fila" })
+    .setDescription(
+      playlistUri ? `**[${playlistTitle}](${playlistUri})**` : `**${playlistTitle}**`,
+    )
+    .addFields(
+      {
+        name: "🎵 Músicas Adicionadas",
+        value: wasCapped
+          ? `\`${tracksAdded.length}\` *(limite máx. de ${tracksAdded.length} de ${totalPlaylistTracks})*`
+          : `\`${tracksAdded.length} música(s)\``,
+        inline: true,
+      },
+      { name: "⏱️ Duração Somada", value: `\`${formattedTotalDuration}\``, inline: true },
+      { name: "🙋 Pedido por", value: `<@${requesterId}>`, inline: true },
+    );
+
+  const thumb =
+    thumbnailUrl ??
+    (tracksAdded[0] ? (tracksAdded[0].info.artworkUrl ?? getTrackBannerUrl(tracksAdded[0])) : null);
+  if (thumb) {
+    embed.setThumbnail(thumb);
+  }
+
+  return embed;
+}
+
 export function buildNowPlayingControls(
   player?: Player,
   disabled = false,
