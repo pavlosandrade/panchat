@@ -1,6 +1,16 @@
 import { MessageFlags, SlashCommandBuilder } from "discord.js";
-import { getMemberVoiceChannelId } from "../music/controls.js";
-import { formatDuration, isUrlQuery, toQuery } from "../music/resolve.js";
+import type { Track } from "lavalink-client";
+import {
+  buildNowPlayingControls,
+  buildNowPlayingEmbed,
+  buildQueuedTrackEmbed,
+  disablePreviousNowPlayingMessage,
+  getMemberVoiceChannelId,
+  markInitialPlayTrack,
+  refreshNowPlayingMessage,
+  saveNowPlayingMessage,
+} from "../music/controls.js";
+import { isUrlQuery, toQuery } from "../music/resolve.js";
 import type { SlashCommand } from "./types.js";
 
 export const playCommand: SlashCommand = {
@@ -98,18 +108,22 @@ export const playCommand: SlashCommand = {
     const track = result.tracks[0];
     await player.queue.add(track);
 
-    const duration = formatDuration(track.info.duration, track.info.isStream);
     const position = player.queue.tracks.length;
 
     if (!player.playing && !player.paused) {
+      await disablePreviousNowPlayingMessage(player, interaction.client);
+      markInitialPlayTrack(player, track.info.identifier);
       await player.play();
-      await interaction.editReply({
-        content: `🔎 Selecionado: **${track.info.title}** \`[${duration}]\``,
+      const sent = await interaction.editReply({
+        embeds: [buildNowPlayingEmbed(track as Track, player)],
+        components: buildNowPlayingControls(player, false),
       });
+      saveNowPlayingMessage(player, interaction.channelId, sent.id, track.info.identifier);
     } else {
       await interaction.editReply({
-        content: `➕ Adicionado à fila (#${position}): **${track.info.title}** \`[${duration}]\``,
+        embeds: [buildQueuedTrackEmbed(track, position, interaction.user.id)],
       });
+      await refreshNowPlayingMessage(player, interaction.client);
     }
   },
 };

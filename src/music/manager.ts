@@ -4,7 +4,10 @@ import type { AppConfig } from "../config.js";
 import {
   buildNowPlayingControls,
   buildNowPlayingEmbed,
+  consumeInitialPlayTrack,
   disablePreviousNowPlayingMessage,
+  getStoredNowPlayingMessage,
+  refreshNowPlayingMessage,
   saveNowPlayingMessage,
   type RequesterInfo,
 } from "./controls.js";
@@ -152,13 +155,23 @@ export function createMusicManager(client: Client, config: AppConfig): LavalinkM
     if (!track) {
       return;
     }
+    if (consumeInitialPlayTrack(player, track.info.identifier)) {
+      await refreshNowPlayingMessage(player, client);
+      return;
+    }
+    const existing = getStoredNowPlayingMessage(player);
+    if (existing && existing.trackId === track.info.identifier) {
+      await refreshNowPlayingMessage(player, client);
+      return;
+    }
+
     await disablePreviousNowPlayingMessage(player, client);
     const sent = await sendToPlayerTextChannel(client, player, {
-      embeds: [buildNowPlayingEmbed(track as Track, player.paused)],
-      components: [buildNowPlayingControls(player.paused, false)],
+      embeds: [buildNowPlayingEmbed(track as Track, player)],
+      components: buildNowPlayingControls(player, false),
     });
     if (sent && player.textChannelId) {
-      saveNowPlayingMessage(player, player.textChannelId, sent.id);
+      saveNowPlayingMessage(player, player.textChannelId, sent.id, track.info.identifier);
     }
   });
 
