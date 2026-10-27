@@ -1,0 +1,76 @@
+export interface SimpleTrackSummary {
+  title: string;
+  uri?: string;
+  author?: string;
+  duration?: number;
+  isStream?: boolean;
+  requesterId?: string;
+}
+
+/**
+ * Converte a entrada do usuário em uma query para o Lavalink.
+ * Se começar com http:// ou https://, retorna a URL direta;
+ * caso contrário, prefixa com "ytsearch:" para buscar no YouTube.
+ */
+export function toQuery(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    throw new Error("A busca não pode ser vazia.");
+  }
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `ytsearch:${trimmed}`;
+}
+
+/**
+ * Verifica se a entrada é uma URL direta.
+ */
+export function isUrlQuery(input: string): boolean {
+  return /^https?:\/\//i.test(input.trim());
+}
+
+/**
+ * Formata milissegundos em mm:ss ou hh:mm:ss.
+ */
+export function formatDuration(ms?: number, isStream?: boolean): string {
+  if (isStream) {
+    return "🔴 AO VIVO";
+  }
+  if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) {
+    return "00:00";
+  }
+
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const pad = (n: number): string => String(n).padStart(2, "0");
+
+  if (hours > 0) {
+    return `${hours}:${pad(minutes)}:${pad(seconds)}`;
+  }
+  return `${pad(minutes)}:${pad(seconds)}`;
+}
+
+/**
+ * Formata a lista das próximas músicas na fila (até `limit` itens).
+ */
+export function formatQueueLines(tracks: SimpleTrackSummary[], limit = 10): string {
+  if (tracks.length === 0) {
+    return "Nenhuma música na fila.";
+  }
+
+  const slice = tracks.slice(0, limit);
+  const lines = slice.map((track, idx) => {
+    const duration = formatDuration(track.duration, track.isStream);
+    const titleLink = track.uri ? `[${track.title}](${track.uri})` : track.title;
+    const requester = track.requesterId ? ` • <@${track.requesterId}>` : "";
+    return `**${idx + 1}.** ${titleLink} \`[${duration}]\`${requester}`;
+  });
+
+  const remaining = tracks.length - slice.length;
+  if (remaining > 0) {
+    lines.push(`\n*...e mais ${remaining} música(s) na fila.*`);
+  }
+
+  return lines.join("\n");
+}
