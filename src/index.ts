@@ -4,6 +4,7 @@ import type { VoicePacket } from "lavalink-client";
 import { commandMap } from "./commands/index.js";
 import { loadConfig } from "./config.js";
 import { registerAllGuildsCommands, registerGuildCommands } from "./deploy-commands.js";
+import { getLastError, recordBotError } from "./error-store.js";
 import { handleMusicButton, MUSIC_BUTTON_IDS } from "./music/controls.js";
 import { createMusicManager, handleVoiceStateUpdate } from "./music/manager.js";
 
@@ -26,6 +27,7 @@ async function main(): Promise<void> {
           status: "ok",
           bot: client.user?.tag ?? "starting",
           uptimeSeconds: Math.floor(process.uptime()),
+          lastError: getLastError(),
         }),
       );
       return;
@@ -90,6 +92,16 @@ async function main(): Promise<void> {
       }
     } catch (error) {
       console.error("[Bot] Erro ao processar interação:", error);
+      recordBotError({
+        type: "interaction",
+        command: interaction.isChatInputCommand()
+          ? interaction.commandName
+          : interaction.isButton()
+            ? interaction.customId
+            : undefined,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       const message = "Ocorreu um erro ao executar essa ação. Tente novamente.";
       if (interaction.isRepliable()) {
         if (interaction.deferred || interaction.replied) {

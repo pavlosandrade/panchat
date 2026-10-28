@@ -1,5 +1,5 @@
 import { MessageFlags, SlashCommandBuilder } from "discord.js";
-import { refreshNowPlayingMessage, validateVoiceControl } from "../music/controls.js";
+import { refreshNowPlayingMessage, stopNowPlayingProgressTimer, validateVoiceControl } from "../music/controls.js";
 import type { SlashCommand } from "./types.js";
 
 export const pauseCommand: SlashCommand = {
@@ -31,6 +31,7 @@ export const pauseCommand: SlashCommand = {
     }
 
     await player.pause();
+    stopNowPlayingProgressTimer(player);
     await refreshNowPlayingMessage(player, interaction.client);
     await interaction.reply({
       content: "Música pausada.",

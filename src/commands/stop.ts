@@ -1,5 +1,9 @@
 import { MessageFlags, SlashCommandBuilder } from "discord.js";
-import { disablePreviousNowPlayingMessage, validateVoiceControl } from "../music/controls.js";
+import {
+  disablePreviousNowPlayingMessage,
+  stopNowPlayingProgressTimer,
+  validateVoiceControl,
+} from "../music/controls.js";
 import type { SlashCommand } from "./types.js";
 
 export const stopCommand: SlashCommand = {
@@ -22,6 +26,7 @@ export const stopCommand: SlashCommand = {
       return;
     }
 
+    stopNowPlayingProgressTimer(player);
     await disablePreviousNowPlayingMessage(player, interaction.client);
     await player.destroy("Parado por /stop");
     await interaction.reply({

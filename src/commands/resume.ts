@@ -1,5 +1,5 @@
 import { MessageFlags, SlashCommandBuilder } from "discord.js";
-import { refreshNowPlayingMessage, validateVoiceControl } from "../music/controls.js";
+import { refreshNowPlayingMessage, startNowPlayingProgressTimer, validateVoiceControl } from "../music/controls.js";
 import type { SlashCommand } from "./types.js";
 
 export const resumeCommand: SlashCommand = {
@@ -31,6 +31,7 @@ export const resumeCommand: SlashCommand = {
     }
 
     await player.resume();
+    startNowPlayingProgressTimer(player, interaction.client);
     await refreshNowPlayingMessage(player, interaction.client);
     await interaction.reply({
       content: "Reprodução retomada.",

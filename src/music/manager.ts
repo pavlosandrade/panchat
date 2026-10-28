@@ -1,6 +1,7 @@
 import type { Client, VoiceBasedChannel, VoiceState } from "discord.js";
 import { LavalinkManager, type Player, type Track } from "lavalink-client";
 import type { AppConfig } from "../config.js";
+import { recordBotError } from "../error-store.js";
 import {
   buildNowPlayingControls,
   buildNowPlayingEmbed,
@@ -9,6 +10,8 @@ import {
   getStoredNowPlayingMessage,
   refreshNowPlayingMessage,
   saveNowPlayingMessage,
+  startNowPlayingProgressTimer,
+  stopNowPlayingProgressTimer,
   type RequesterInfo,
 } from "./controls.js";
 
@@ -149,6 +152,11 @@ export function createMusicManager(client: Client, config: AppConfig): LavalinkM
 
   lavalink.nodeManager.on("error", (node, error) => {
     console.error(`[Lavalink] Erro no nó "${node.id}":`, error.message);
+    recordBotError({
+      type: "lavalink",
+      message: `Node "${node.id}": ${error.message}`,
+      stack: error.stack,
+    });
   });
 
   lavalink.on("trackStart", async (player, track) => {
@@ -157,11 +165,13 @@ export function createMusicManager(client: Client, config: AppConfig): LavalinkM
     }
     if (consumeInitialPlayTrack(player, track.info.identifier)) {
       await refreshNowPlayingMessage(player, client);
+      startNowPlayingProgressTimer(player, client);
       return;
     }
     const existing = getStoredNowPlayingMessage(player);
     if (existing && existing.trackId === track.info.identifier) {
       await refreshNowPlayingMessage(player, client);
+      startNowPlayingProgressTimer(player, client);
       return;
     }
 
@@ -173,12 +183,18 @@ export function createMusicManager(client: Client, config: AppConfig): LavalinkM
     if (sent && player.textChannelId) {
       saveNowPlayingMessage(player, player.textChannelId, sent.id, track.info.identifier);
     }
+    startNowPlayingProgressTimer(player, client);
   });
 
   lavalink.on("trackError", async (player, track, payload) => {
+    stopNowPlayingProgressTimer(player);
     const title = track?.info?.title ?? "faixa desconhecida";
     const reason = payload.exception?.message ?? "erro desconhecido ao reproduzir";
     console.error(`[Music] Erro na faixa "${title}":`, reason);
+    recordBotError({
+      type: "lavalink",
+      message: `Track "${title}" error: ${reason}`,
+    });
     await sendToPlayerTextChannel(
       client,
       player,
@@ -187,6 +203,7 @@ export function createMusicManager(client: Client, config: AppConfig): LavalinkM
   });
 
   lavalink.on("trackStuck", async (player, track) => {
+    stopNowPlayingProgressTimer(player);
     const title = track?.info?.title ?? "faixa desconhecida";
     console.warn(`[Music] Faixa travou: "${title}"`);
     await sendToPlayerTextChannel(
@@ -202,6 +219,7 @@ export function createMusicManager(client: Client, config: AppConfig): LavalinkM
   });
 
   lavalink.on("queueEnd", async (player) => {
+    stopNowPlayingProgressTimer(player);
     await disablePreviousNowPlayingMessage(player, client);
     await sendToPlayerTextChannel(
       client,
@@ -211,6 +229,7 @@ export function createMusicManager(client: Client, config: AppConfig): LavalinkM
   });
 
   lavalink.on("playerQueueEmptyEnd", async (player) => {
+    stopNowPlayingProgressTimer(player);
     await sendToPlayerTextChannel(
       client,
       player,
@@ -219,6 +238,7 @@ export function createMusicManager(client: Client, config: AppConfig): LavalinkM
   });
 
   lavalink.on("playerDestroy", async (player) => {
+    stopNowPlayingProgressTimer(player);
     clearEmptyChannelTimer(player);
     await disablePreviousNowPlayingMessage(player, client);
   });

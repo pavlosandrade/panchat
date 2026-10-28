@@ -325,6 +325,41 @@ export function getStoredNowPlayingMessage(player: Player): StoredNowPlayingMess
   return player.getData<StoredNowPlayingMessage | undefined>(NOW_PLAYING_DATA_KEY);
 }
 
+const progressTimers = new Map<string, NodeJS.Timeout>();
+
+/**
+ * Para o timer periódico de atualização da barra de progresso da guilda.
+ */
+export function stopNowPlayingProgressTimer(player: Player): void {
+  const existing = progressTimers.get(player.guildId);
+  if (existing) {
+    clearInterval(existing);
+    progressTimers.delete(player.guildId);
+  }
+}
+
+/**
+ * Inicia o timer periódico seguro (a cada 15 segundos) para atualizar
+ * a barra de progresso no card de reprodução ativo.
+ * 15 segundos evita estritamente o rate limit do Discord (máx. 5 edições a cada 5s por canal).
+ */
+export function startNowPlayingProgressTimer(player: Player, client: Client): void {
+  stopNowPlayingProgressTimer(player);
+
+  const timer = setInterval(async () => {
+    if (!player.playing || player.paused || !player.queue.current) {
+      return;
+    }
+    await refreshNowPlayingMessage(player, client);
+  }, 15_000);
+
+  if (typeof timer.unref === "function") {
+    timer.unref();
+  }
+
+  progressTimers.set(player.guildId, timer);
+}
+
 /**
  * Desativa os botões da mensagem "Tocando agora" anterior, se existir.
  */
@@ -332,6 +367,7 @@ export async function disablePreviousNowPlayingMessage(
   player: Player,
   client: Client,
 ): Promise<void> {
+  stopNowPlayingProgressTimer(player);
   const previous = getStoredNowPlayingMessage(player);
   if (!previous) {
     return;
@@ -388,8 +424,12 @@ export async function refreshNowPlayingMessage(
       embeds: [buildNowPlayingEmbed(currentTrack, player)],
       components: buildNowPlayingControls(player, false),
     });
-  } catch {
-    // Ignora se a mensagem não existir mais.
+  } catch (err: unknown) {
+    const code = (err as { code?: number })?.code;
+    if (code === 10008 || code === 10003) {
+      stopNowPlayingProgressTimer(player);
+      player.deleteData(NOW_PLAYING_DATA_KEY);
+    }
   }
 }
 
@@ -512,8 +552,10 @@ export async function handleMusicButton(
     case MUSIC_BUTTON_IDS.TOGGLE: {
       if (player.paused) {
         await player.resume();
+        startNowPlayingProgressTimer(player, interaction.client);
       } else {
         await player.pause();
+        stopNowPlayingProgressTimer(player);
       }
 
       const embeds = currentTrack ? [buildNowPlayingEmbed(currentTrack, player)] : undefined;
@@ -549,6 +591,7 @@ export async function handleMusicButton(
     }
 
     case MUSIC_BUTTON_IDS.SKIP: {
+      stopNowPlayingProgressTimer(player);
       const skippedTitle = currentTrack?.info.title ?? "a música atual";
       if (player.queue.tracks.length === 0) {
         await player.stopPlaying(true, false);
@@ -562,6 +605,7 @@ export async function handleMusicButton(
     }
 
     case MUSIC_BUTTON_IDS.STOP: {
+      stopNowPlayingProgressTimer(player);
       await disablePreviousNowPlayingMessage(player, interaction.client);
       await player.destroy("Parado pelo botão");
       await interaction.reply({
