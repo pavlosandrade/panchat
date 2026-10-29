@@ -190,3 +190,55 @@ export function slicePlaylistTracks<T extends { info: { identifier?: string } }>
   }
   return tracks.slice(startIdx, startIdx + maxTracks);
 }
+
+export const GENERIC_TRACK_ERROR_REASON = "erro ao carregar o áudio";
+
+/**
+ * Categorias de erro conhecidas, avaliadas em ordem: a primeira que casar vence.
+ * Um mesmo erro do youtube-source pode trazer motivos de vários clientes
+ * (ex.: "requires login" e "unavailable"), por isso as mais específicas vêm antes.
+ */
+const TRACK_ERROR_CATEGORIES: Array<{ patterns: RegExp[]; reason: string }> = [
+  {
+    patterns: [/requires login/i, /age[- ]restricted/i, /confirm your age/i],
+    reason: "vídeo com restrição de idade no YouTube",
+  },
+  {
+    patterns: [/not a bot/i],
+    reason: "o YouTube bloqueou temporariamente o servidor de áudio",
+  },
+  {
+    patterns: [/private/i],
+    reason: "o vídeo é privado",
+  },
+  {
+    patterns: [/country/i, /region/i],
+    reason: "o vídeo não está disponível na região do servidor",
+  },
+  {
+    patterns: [/live event will begin/i, /premiere/i],
+    reason: "a transmissão ainda não começou",
+  },
+  {
+    patterns: [/unavailable/i, /removed/i, /does not exist/i],
+    reason: "o vídeo está indisponível ou foi removido",
+  },
+  {
+    patterns: [/\b429\b/, /\b403\b/, /status code/i],
+    reason: "o servidor de áudio foi limitado pelo YouTube, tente de novo mais tarde",
+  },
+];
+
+/**
+ * Converte a exceção do Lavalink num motivo amigável para o canal.
+ * Nunca devolve o texto bruto da exceção: erros não reconhecidos viram uma mensagem genérica.
+ */
+export function formatTrackErrorReason(message?: string | null): string {
+  if (!message) {
+    return GENERIC_TRACK_ERROR_REASON;
+  }
+  const category = TRACK_ERROR_CATEGORIES.find(({ patterns }) =>
+    patterns.some((pattern) => pattern.test(message)),
+  );
+  return category?.reason ?? GENERIC_TRACK_ERROR_REASON;
+}

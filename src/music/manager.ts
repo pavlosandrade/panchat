@@ -14,6 +14,7 @@ import {
   stopNowPlayingProgressTimer,
   type RequesterInfo,
 } from "./controls.js";
+import { formatTrackErrorReason } from "./resolve.js";
 
 const EMPTY_CHANNEL_TIMER_KEY = "emptyChannelTimer";
 
@@ -198,7 +199,7 @@ export function createMusicManager(client: Client, config: AppConfig): LavalinkM
     await sendToPlayerTextChannel(
       client,
       player,
-      `Não foi possível reproduzir **${title}** (${reason}). Pulando para a próxima...`,
+      `Não foi possível reproduzir **${title}** (${formatTrackErrorReason(reason)}). Pulando para a próxima...`,
     );
   });
 

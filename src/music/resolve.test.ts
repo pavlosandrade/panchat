@@ -5,9 +5,11 @@ import {
   formatDuration,
   formatProgressBar,
   formatQueueLines,
+  formatTrackErrorReason,
   getPlatformTheme,
   isUrlQuery,
   MAX_PLAYLIST_TRACKS,
+  GENERIC_TRACK_ERROR_REASON,
   slicePlaylistTracks,
   toQuery,
 } from "./resolve.js";
@@ -147,5 +149,56 @@ describe("formatProgressBar", () => {
   it("exibe AO VIVO para transmissões", () => {
     const bar = formatProgressBar(10_000, 0, true, 10);
     assert.equal(bar, "▬▬▬▬▬▬▬▬▬▬ AO VIVO");
+  });
+});
+
+describe("formatTrackErrorReason", () => {
+  const ageRestrictedError = `(yts.version: 10f3c72ba562b7b2b70ba372eb268f54b5cd1d0c) All clients failed to load the item.
+
+Client [MWEB] failed: This video requires login.
+    at dev.lavalink.youtube.clients.skeleton.Client.getPlayabilityStatus(Client.java:106)
+    at dev.lavalink.youtube.clients.skeleton.NonMusicClient.loadTrackInfoFromInnertube(NonMusicClient.java:164)
+
+Client [WEB_EMBEDDED_PLAYER] failed: This video is unavailable
+    at dev.lavalink.youtube.clients.skeleton.Client.getPlayabilityStatus(Client.java:66)`;
+
+  it("prioriza restrição de idade mesmo quando outro cliente diz 'unavailable'", () => {
+    assert.equal(formatTrackErrorReason(ageRestrictedError), "vídeo com restrição de idade no YouTube");
+    assert.equal(
+      formatTrackErrorReason("Sign in to confirm your age"),
+      "vídeo com restrição de idade no YouTube",
+    );
+  });
+
+  it("mapeia cada categoria conhecida", () => {
+    const cases: Array<[string, string]> = [
+      ["Sign in to confirm you're not a bot", "o YouTube bloqueou temporariamente o servidor de áudio"],
+      ["This video is private", "o vídeo é privado"],
+      [
+        "The uploader has not made this video available in your country",
+        "o vídeo não está disponível na região do servidor",
+      ],
+      ["This live event will begin in 3 hours", "a transmissão ainda não começou"],
+      ["This video is unavailable", "o vídeo está indisponível ou foi removido"],
+      ["This video has been removed by the uploader", "o vídeo está indisponível ou foi removido"],
+      [
+        "Not success status code: 429",
+        "o servidor de áudio foi limitado pelo YouTube, tente de novo mais tarde",
+      ],
+    ];
+    for (const [input, expected] of cases) {
+      assert.equal(formatTrackErrorReason(input), expected, input);
+    }
+  });
+
+  it("nunca expõe o texto bruto de erros desconhecidos", () => {
+    const message = `(yts.version: abc) Something unexpected happened
+    at dev.lavalink.youtube.Foo(Foo.java:1)`;
+    assert.equal(formatTrackErrorReason(message), GENERIC_TRACK_ERROR_REASON);
+  });
+
+  it("usa a mensagem genérica quando não há exceção", () => {
+    assert.equal(formatTrackErrorReason(undefined), GENERIC_TRACK_ERROR_REASON);
+    assert.equal(formatTrackErrorReason(""), GENERIC_TRACK_ERROR_REASON);
   });
 });
